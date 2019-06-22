@@ -21,11 +21,13 @@ typedef struct {
 
 }RGB_Image;
 
-// Main function Prototypes
 
+// Main function Prototypes
 void print_information_image(void);
 void save_copy_image(void);
 void change_luminosity_image(void);
+void remove_channel_image(void);
+void invert_image(void);
 
 // FILE Functions
 int load_image(RGB_Image*);
@@ -34,24 +36,30 @@ int save_image(RGB_Image);
 // FREE function
 void free_pixels(RGB_Image);
 
-// PIXEL FUNCTIONS
-void change_luminosity_pixels(Pixel**, int,int,int);
 
+// PIXEL FUNCTIONS
+void change_luminosity_pixels(Pixel**, int, int, int);
+void remove_red_pixels(Pixel**, int, int);
+void remove_green_pixels(Pixel**, int, int);
+void remove_blue_pixels(Pixel**, int, int);
+void invert_pixels(Pixel**, int, int);
 
 void removeBmp(char*);
 
 int main()
 {
-	printf("\n\n            ******************* Bitmap Manager v1.0 *******************\n");
+	printf("\n\n            ******************* Bitmap Manager v2.0 *******************\n");
 	int choice = 0;
 	while (choice != -1) {
 		printf("\n\n");
 		printf("\n\t\t MAIN MENU");
-		printf("\n\t Please enter 0-2, or -1 to Quit");
+		printf("\n\t Please press enter 0-4, or -1 to Quit");
 		printf("\n");
 		printf("\n\t 0 - Print image information");
 		printf("\n\t 1 - Save copy of image");
 		printf("\n\t 2 - Change luminosity of image");
+		printf("\n\t 3 - Remove image channel");
+		printf("\n\t 4 - Invert image colors");
 		printf("\n\t-1 - Quit");
 
 		printf("\n\n\t Choice >> ");
@@ -66,6 +74,12 @@ int main()
 			break;
 		case 2:
 			change_luminosity_image();
+			break;
+		case 3:
+			remove_channel_image();
+			break;
+		case 4:
+			invert_image();
 			break;
 		default:
 			continue;
@@ -131,7 +145,7 @@ int save_image(RGB_Image image) {
 		return 1;
 	}
 
-	int data_size = image.size - 54;
+	int ds = image.size - 40;
 	unsigned char bmp_header[] = {
 			0x42,0x4D,
 			image.size,image.size >> 8,  image.size >> 16,image.size >> 24,
@@ -191,6 +205,95 @@ void change_luminosity_pixels(Pixel** pixels, int height, int width, int luminos
 	}
 }
 
+void remove_red_pixels(Pixel** pixels, int height, int width) {
+	int i, j;
+	for (i = 0; i < height; ++i)
+		for (j = 0; j < width; ++j)
+			pixels[i][j].red = 0;
+
+}
+
+void remove_green_pixels(Pixel** pixels, int height, int width) {
+	int i, j;
+	for (i = 0; i < height; ++i)
+		for (j = 0; j < width; ++j)
+			pixels[i][j].green = 0;
+}
+void remove_blue_pixels(Pixel** pixels, int height, int width) {
+	int i, j;
+	for (i = 0; i < height; ++i)
+		for (j = 0; j < width; ++j)
+			pixels[i][j].blue = 0;
+
+}
+
+void invert_pixels(Pixel** pixels, int height, int width) {
+	int i, j;
+	for(i=0;i<height;++i)
+		for (j = 0; j < width; ++j) {
+			pixels[i][j].red ^= 0xFF;
+			pixels[i][j].green ^= 0xFF;
+			pixels[i][j].blue ^= 0xFF;
+		}
+}
+
+void invert_image() {
+	RGB_Image image;
+	int failedToLoad = load_image(&image);
+	removeBmp(image.file_name);
+
+	if (!failedToLoad) {
+		invert_pixels(image.pixels, image.height, image.width);
+		strcat(image.file_name, "_inverted");
+		printf("\n Image inverted.\n\n");
+		save_image(image);
+		free_pixels(image);
+	}
+}
+
+
+void remove_channel_image() {
+	RGB_Image image;
+	int failedToLoad = load_image(&image);
+	removeBmp(image.file_name);
+
+	if (!failedToLoad) {
+		int choice = 0;
+			printf("\n Choose which channel to remove (1-3):\n"
+				"\n 1. Red"
+				"\n 2. Green"
+				"\n 3. Blue\n > ");
+
+			scanf("%d", &choice);
+			switch (choice) {
+			case 1:
+				remove_red_pixels(image.pixels, image.height, image.width);
+				strcat(image.file_name, "_red_channel_removed");
+				printf("\n Red channel removed.\n");
+				save_image(image);
+				break;
+
+			case 2:
+				remove_green_pixels(image.pixels, image.height, image.width);
+				strcat(image.file_name, "_green_channel_removed");
+				printf("\n Green channel removed.\n");
+				save_image(image);
+				break;
+
+			case 3:
+				remove_blue_pixels(image.pixels, image.height, image.width);
+				strcat(image.file_name, "_blue_channel_removed");
+				printf("\n Blue channel removed.\n");
+				save_image(image);
+				break;
+			default:
+				printf("\n Invalid choice.\n");
+				return;
+			}
+		free_pixels(image);
+	}
+
+}
 
 void change_luminosity_image()
 {
