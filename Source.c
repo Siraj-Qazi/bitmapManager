@@ -23,11 +23,15 @@ typedef struct {
 
 
 // Main function Prototypes
+
 void print_information_image(void);
 void save_copy_image(void);
 void change_luminosity_image(void);
 void remove_channel_image(void);
 void invert_image(void);
+void quantize_image(void);
+void flip_horizontal_image(void);
+void crop_image(void);
 
 // FILE Functions
 int load_image(RGB_Image*);
@@ -36,30 +40,37 @@ int save_image(RGB_Image);
 // FREE function
 void free_pixels(RGB_Image);
 
+//REALLOC FUNCTION
+void re_allocate_pixels(RGB_Image*, int, int);
 
 // PIXEL FUNCTIONS
-void change_luminosity_pixels(Pixel**, int, int, int);
+void invert_pixels(Pixel**, int, int);
+void quantize_pixels(Pixel**, int, int, int);
 void remove_red_pixels(Pixel**, int, int);
 void remove_green_pixels(Pixel**, int, int);
 void remove_blue_pixels(Pixel**, int, int);
-void invert_pixels(Pixel**, int, int);
+void change_luminosity_pixels(Pixel**, int, int,int);
+void flip_horizontal_pixels(Pixel**, int, int);
 
 void removeBmp(char*);
 
 int main()
 {
-	printf("\n\n            ******************* Bitmap Manager v2.0 *******************\n");
+	printf("\n\n ******************* Bitmap Manager v3.0 *******************\n");
 	int choice = 0;
 	while (choice != -1) {
 		printf("\n\n");
 		printf("\n\t\t MAIN MENU");
-		printf("\n\t Please press enter 0-4, or -1 to Quit");
+		printf("\n\t Please press enter 0-7, or -1 to Quit");
 		printf("\n");
 		printf("\n\t 0 - Print image information");
 		printf("\n\t 1 - Save copy of image");
 		printf("\n\t 2 - Change luminosity of image");
 		printf("\n\t 3 - Remove image channel");
 		printf("\n\t 4 - Invert image colors");
+		printf("\n\t 5 - Quantize image");
+		printf("\n\t 6 - Flip image horizontally");
+		printf("\n\t 7 - Crop image <EXPERIMENTAL>");
 		printf("\n\t-1 - Quit");
 
 		printf("\n\n\t Choice >> ");
@@ -80,6 +91,15 @@ int main()
 			break;
 		case 4:
 			invert_image();
+			break;
+		case 5:
+			quantize_image();
+			break;
+		case 6:
+			flip_horizontal_image();
+			break;
+		case 7:
+			crop_image();
 			break;
 		default:
 			continue;
@@ -145,7 +165,7 @@ int save_image(RGB_Image image) {
 		return 1;
 	}
 
-	int ds = image.size - 40;
+	int data_size = image.size - 54;
 	unsigned char bmp_header[] = {
 			0x42,0x4D,
 			image.size,image.size >> 8,  image.size >> 16,image.size >> 24,
@@ -236,6 +256,173 @@ void invert_pixels(Pixel** pixels, int height, int width) {
 			pixels[i][j].blue ^= 0xFF;
 		}
 }
+
+void quantize_pixels(Pixel** pixels, int height, int width, int quantization_level) {
+
+	int i, j;
+	unsigned int bit_mask=0;
+	for (i = 0; i < quantization_level-1; ++i) {
+		bit_mask++;
+		bit_mask = bit_mask << 1;
+	}
+	bit_mask++;
+
+	quantization_level = bit_mask;
+
+	for(i = 0; i < height; ++i)
+		for (j = 0; j < width; ++j) {
+			pixels[i][j].red &= quantization_level;
+			pixels[i][j].green &= quantization_level;
+			pixels[i][j].blue &= quantization_level;
+		}
+}
+
+void flip_horizontal_pixels(Pixel** pixels, int height, int width) {
+	Pixel** temp = (Pixel**)malloc(height * sizeof(Pixel*));
+	int i;
+	for (i = 0; i < height; ++i)
+		temp[i] = (Pixel*)malloc(width * sizeof(Pixel));
+
+	int j, k;
+	for(i = 0; i < height; ++i)
+		for (j = 0, k = width - 1; j < width; ++j, --k)
+			temp[i][j] = pixels[i][k];
+
+	for (i = 0; i < height; ++i) {
+		pixels[i] = temp[i];
+		temp[i] = NULL;
+	}
+}
+
+void re_allocate_pixels(RGB_Image* image_ptr, int new_height, int new_width) {
+	int pre_height = image_ptr->height;
+	int pre_width = image_ptr->width;
+
+	Pixel** temp = (Pixel**)malloc(new_height * sizeof(Pixel*));
+	int i,j;
+	for (i = 0; i < new_height; ++i)
+		temp[i] = (Pixel*)malloc(new_width * sizeof(Pixel));
+
+	for (i = 0; i < new_height; ++i) {
+		for (j = 0; j < new_width; ++j) {
+			if (i >= pre_height - 1 || j >= pre_width - 1) {
+				temp[i][j].red = 0;
+				temp[i][j].green = 0;
+				temp[i][j].blue = 0;
+			}
+			else
+				temp[i][j] = image_ptr->pixels[i][j];
+		}
+	}
+	
+	image_ptr->height = new_height;
+	image_ptr->width = new_width;
+	image_ptr->size = (new_height*new_width) + 54;
+
+	image_ptr->pixels = (Pixel**)realloc(image_ptr->pixels, new_height);
+	for (i = 0; i < new_height; ++i)
+		image_ptr->pixels[i] = (Pixel*)malloc(new_width * sizeof(Pixel));
+
+	for (i = 0; i < new_height; ++i) {
+		image_ptr->pixels[i] = temp[i];
+		temp[i] = NULL;
+	}
+
+	
+}
+
+void crop_image()
+{
+	RGB_Image image;
+	int failedToLoad = load_image(&image);
+	removeBmp(image.file_name);
+	int sizes[] = { 100,200,300,400 };
+
+	if (!failedToLoad) {
+		int choice = 0;
+		printf("\n Enter the size to crop (1-4):  <EXPERIMENTAL | UNSTABLE>\n"
+			"\n 1. 100x100"
+			"\n 2. 200x200"
+			"\n 3. 300x300"
+			"\n 4. 400x400\n > ");
+
+		scanf("%d", &choice);
+		switch (choice) {
+		case 1:
+			re_allocate_pixels(&image, sizes[0], sizes[0]);
+			strcat(image.file_name, "_cropped_100");
+			printf("\n Image cropped.\n");
+			save_image(image);
+			break;
+
+		case 2:
+			re_allocate_pixels(&image, sizes[1], sizes[1]);
+			strcat(image.file_name, "_cropped_200");
+			printf("\n Image cropped.\n");
+			save_image(image);
+			break;
+
+		case 3:
+			re_allocate_pixels(&image, sizes[2], sizes[2]);
+			strcat(image.file_name, "_cropped_300");
+			printf("\n Image cropped.\n");
+			save_image(image);
+			break;
+
+		case 4:
+			re_allocate_pixels(&image, sizes[3], sizes[3]);
+			strcat(image.file_name, "_cropped_400");
+			printf("\n Image cropped.\n");
+			save_image(image);
+			break;
+		default:
+			printf("\n Invalid choice.\n");
+			return;
+		}
+		free_pixels(image);
+	}
+}
+void flip_horizontal_image()
+{
+	RGB_Image image;
+	int failedToLoad = load_image(&image);
+	removeBmp(image.file_name);
+
+	if (!failedToLoad) {
+		flip_horizontal_pixels(image.pixels, image.height, image.width);
+		strcat(image.file_name, "_flipped_horizontally");
+		printf("\n Image flipped horizontally.\n\n");
+		save_image(image);
+		free_pixels(image);
+	}
+}
+
+void quantize_image()
+{
+	RGB_Image image;
+	int failedToLoad = load_image(&image);
+	removeBmp(image.file_name);
+
+	int quantization_level = -1;
+	while (quantization_level < 0 || quantization_level > 7)
+	{
+		printf("\n Enter the quantization level (0-7): ");
+		scanf("%d", &quantization_level);
+	}
+
+	if (!failedToLoad) {
+		quantize_pixels(image.pixels, image.height, image.width, quantization_level);
+
+		char temp[30];
+		sprintf(temp, "_quantize_%d", quantization_level);
+		strcat(image.file_name, temp);
+		printf("\n Image quantized by a level of %d\n", quantization_level);
+		save_image(image);
+		free_pixels(image);
+	}
+}
+
+
 
 void invert_image() {
 	RGB_Image image;
